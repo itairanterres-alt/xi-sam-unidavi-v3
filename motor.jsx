@@ -72,18 +72,20 @@
     const tit = f.titulo ? `<strong style="color:${C.tinta}">${esc(f.titulo)}</strong>${f.legenda ? " — " : ""}` : "";
     return `<div style="padding:${(6*s).toFixed(1)}px ${(10*s).toFixed(1)}px;font-size:${(FT.legenda*s).toFixed(2)}px;color:${C.cinza};line-height:1.32"><strong style="color:${C.azul}">Fig ${f.ordem}.</strong> ${tit}${esc(f.legenda || "")}${principal}</div>`;
   }
-  /* figura: largura E altura explícitas → sem reflow. `dispW` = largura de exibição. */
-  function figHTML(f, s, cor, dispW, mapa, semLegenda) {
+  /* figura: largura E altura explícitas → sem reflow. `dispW` = largura de exibição;
+     `maxH` (opcional) limita a ALTURA — figura alta encolhe e centraliza, nunca corta. */
+  function figHTML(f, s, cor, dispW, mapa, semLegenda, maxH) {
     const url = f.url || f.dataUrl;
     const a = aspectoDe(f, mapa);
-    const imgW = Math.round(dispW);
-    const imgH = Math.round(imgW / a);
+    let imgW = Math.round(dispW);
+    let imgH = Math.round(imgW / a);
+    if (maxH && imgH > maxH) { imgH = Math.round(maxH); imgW = Math.round(imgH * a); } // teto de altura (retrato)
     const borda = `2px ${f.principal ? "solid" : "dashed"} ${f.principal ? C.ciano : cor + "55"}`;
     const fundo = f.principal ? C.cianoClaro : C.papel;
     const inner = url
-      ? `<img src="${esc(url)}" alt="" style="display:block;width:${imgW}px;height:${imgH}px;object-fit:cover" />`
+      ? `<img src="${esc(url)}" alt="" style="display:block;width:${imgW}px;height:${imgH}px;object-fit:contain" />`
       : `<div style="width:${imgW}px;height:${Math.round(imgW/1.6)}px;display:flex;align-items:center;justify-content:center;background:#fff;color:${cor};font-size:13px">[figura]</div>`;
-    return `<div style="break-inside:avoid;margin:${(4*s).toFixed(1)}px 0 ${(12*s).toFixed(1)}px;border:${borda};border-radius:10px;overflow:hidden;background:${fundo};width:${imgW}px">`
+    return `<div style="break-inside:avoid;margin:${(4*s).toFixed(1)}px auto ${(12*s).toFixed(1)}px;border:${borda};border-radius:10px;overflow:hidden;background:${fundo};width:${imgW}px">`
       + `<div style="background:#fff;display:flex;justify-content:center">${inner}</div>`
       + (semLegenda ? "" : legendaHTML(f, s)) + `</div>`;
   }
@@ -198,7 +200,7 @@
 
     // região útil (descontando refs no pé)
     const refsH = refs.length ? medeAltura(refsHTML(refs, 1, cor, bodyW - PADX * 2) , bodyW - PADX * 2) : 0;
-    const usableH = bodyH - PADY * 2 - (refsH ? refsH + GAP * 0.5 : 0);
+    const usableH = bodyH - PADY * 2 - (refsH ? refsH + GAP * 0.5 : 0) - 14; // -14 = margem de segurança (nada estoura)
 
     let colW, availH, heroBox = null, textRegionW = bodyW - PADX * 2, capImgH = 0;
 
@@ -212,6 +214,7 @@
       availH = usableH - bandH - capH - GAP;
       colW = Math.floor((textRegionW - COLGAP * (cols - 1)) / cols);
       if (availH < usableH * 0.32) return null;
+      capImgH = Math.round(availH * 0.5); // figuras secundárias inline não estouram
     } else if (template === "lateral" && hero) {
       // herói como PAINEL LATERAL — LARGURA = fração do corpo (lever de design).
       // Largo → painel; retrato → coluna estreita. Altura derivada (≤ corpo).
@@ -222,6 +225,7 @@
       const capH = medeAltura(legendaHTML(hero, 1), heroW);
       heroBox = { tipo: "lateral", f: hero, heroW, heroH, capH, area: heroW * heroH, heroFrac };
       availH = usableH;
+      capImgH = Math.round(usableH * 0.5); // figuras secundárias inline não estouram
       const restoW = textRegionW - heroW - COLGAP;
       colW = Math.floor((restoW - COLGAP * (cols - 1)) / cols);
     } else {
@@ -378,9 +382,9 @@
     if (heroBox && heroBox.tipo === "faixa") {
       regiao = `<div style="display:flex;gap:${COLGAP}px;align-items:flex-start;width:${textRegionW}px">${colunasHTML}</div>`
         + `<div style="margin-top:${GAP}px;display:flex;flex-direction:column;align-items:center;width:${textRegionW}px">`
-        + figHTML(heroBox.f, s, cor, heroBox.drawW, mapa) + `</div>`;
+        + figHTML(heroBox.f, s, cor, heroBox.drawW, mapa, false, heroBox.bandH) + `</div>`;
     } else if (heroBox && heroBox.tipo === "lateral") {
-      const heroCol = `<div style="flex-shrink:0;width:${heroBox.heroW}px;display:flex;flex-direction:column;justify-content:center">${figHTML(heroBox.f, s, cor, heroBox.heroW, mapa)}</div>`;
+      const heroCol = `<div style="flex-shrink:0;width:${heroBox.heroW}px;display:flex;flex-direction:column;justify-content:center;align-items:center">${figHTML(heroBox.f, s, cor, heroBox.heroW, mapa, false, Math.max(120, heroBox.heroH - heroBox.capH - 8))}</div>`;
       regiao = `<div style="display:flex;gap:${COLGAP}px;align-items:stretch;width:${textRegionW}px">${heroCol}<div style="display:flex;gap:${COLGAP}px;align-items:flex-start;flex:1">${colunasHTML}</div></div>`;
     } else {
       regiao = `<div style="display:flex;gap:${COLGAP}px;align-items:flex-start;width:${textRegionW}px">${colunasHTML}</div>`;
